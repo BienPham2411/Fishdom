@@ -9,13 +9,11 @@ public class PlayerController : MonoBehaviour
     private Vector3 position;
     [SerializeField] private int point;
     [SerializeField] private TextMeshPro textPoint;
-    [SerializeField] private float speed = 2f, distance;
+    [SerializeField] private float speed = 2f;
     [SerializeField] private bool isMove;
-    private Vector3 lastPos;
     private void Awake()
     {
-        lastPos = Camera.main.transform.position;
-        distance = 0;
+        oriScale = transform.lossyScale.x;
         instance = this;
         SetPoint(GetPoint());
         isMove = false;
@@ -23,7 +21,7 @@ public class PlayerController : MonoBehaviour
     public void MoveToTouchPosition()
     {
         //print(Input.touchCount);
-        
+
         Touch touch = Input.GetTouch(0);
         if (touch.phase != TouchPhase.Began)
             return;
@@ -46,10 +44,15 @@ public class PlayerController : MonoBehaviour
     private void Update()
     {
         Vector3 convertPos = new Vector3(transform.position.x, transform.position.y, Camera.main.transform.position.z);
-        distance = (convertPos - lastPos).magnitude;
-        if(distance >= 1.5f && GameManager.instance.mode == Mode.Move)
+        float distX = convertPos.x - Camera.main.transform.position.x;
+        float distY = convertPos.y - Camera.main.transform.position.y;
+        if ((Mathf.Abs(distX) > 0.5f || Mathf.Abs(distY) > 2f) && GameManager.instance.mode == Mode.Move)
         {
-            MoveCamera(Mode.Move);
+            //GameManager.instance.MoveCamera(GameManager.instance.GetMode());
+        }
+        else if (GameManager.instance.mode == Mode.Move)
+        {
+            GameManager.instance.StopCamera();
         }
         if (Input.touchCount > 0 && GameManager.instance.GetMode() == Mode.Move && GameManager.instance.GetPLay())
         {
@@ -68,15 +71,40 @@ public class PlayerController : MonoBehaviour
         return point;
     }
 
+    private int[] pointScale = { 1, 50, 200, 500, 1000, 5000 };
+    private float oriScale = 1f;
+    private float curScale = 1f;
+    private Tween scaleTween;
+    private void GetScale(int point)
+    {
+        if (scaleTween != null)
+            scaleTween.Kill();
+        curScale = oriScale;
+        float camScale = 5;
+        for (int i = 0; i < pointScale.Length; i++)
+        {
+            if (point >= pointScale[i])
+            {
+                camScale *= 1.1f;
+                curScale *= 1.2f;
+            }
+            else
+                break;
+        }
+        scaleTween = transform.DOScale(curScale, 0.5f);
+        GameManager.instance.ScaleCam(camScale, 0.5f);
+    }
+
     public void SetPoint(int point)
     {
+        GetScale(point);
         this.point = point;
         textPoint.text = point.ToString();
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if(collision.tag == "Enemy")
+        if (collision.tag == "Enemy")
         {
             Enemy enemy = collision.GetComponent<Enemy>();
             if (enemy.GetPoint() < GetPoint())
@@ -84,10 +112,16 @@ public class PlayerController : MonoBehaviour
             else
                 GetEaten(enemy);
         }
-        if(collision.tag == "Boost")
+        if (collision.tag == "Boost")
         {
             BoostItem item = collision.GetComponent<BoostItem>();
-            SetPoint(GetPoint() * item.GetCoef());
+            item.GetPoint(this);
+            item.gameObject.SetActive(false);
+        }
+        if (collision.tag == "Decrease")
+        {
+            DecreaseItem item = collision.GetComponent<DecreaseItem>();
+            item.GetPoint(this);
             item.gameObject.SetActive(false);
         }
     }
@@ -107,18 +141,6 @@ public class PlayerController : MonoBehaviour
         gameObject.SetActive(false);
     }
 
-    private void MoveCamera(Mode mode)
-    {
-        if (mode == Mode.Move)
-        {
-            //Camera.main.transform.DOKill();
-            //Vector3 convertPos = new Vector3(transform.position.x, transform.position.y, Camera.main.transform.position.z);
-            //Camera.main.transform.DOMove(convertPos, (convertPos - Camera.main.transform.position).magnitude / speed).SetEase(Ease.Linear);
-            //lastPos = convertPos;
-        }
-        if(mode == Mode.Stay)
-        {
-           
-        }
-    }
+
+
 }
